@@ -251,6 +251,7 @@ namespace Microsoft.Partner.SmartOffice.Functions
                     }
 
                     customers = await customerRepository.GetAsync().ConfigureAwait(false);
+                    log.LogInformation($"Retrieved {customers.Count()} customers from the repository");
 
                     customers = await AuditRecordConverter.ConvertAsync(
                         client,
@@ -258,6 +259,8 @@ namespace Microsoft.Partner.SmartOffice.Functions
                         customers,
                         new Dictionary<string, string> { { "EnvironmentId", environment.Id } },
                         log).ConfigureAwait(false);
+
+                    log.LogInformation($"Audit record application resulted in {customers.Count()} customers in totoal.");
                 }
 
                 // Add, or update, each customer to the database.
@@ -279,7 +282,7 @@ namespace Microsoft.Partner.SmartOffice.Functions
                     i++;
                 }
 
-                log.LogTrace($"Added {i} customers to the queue...");
+                log.LogInformation($"Added {i} customers to the queue...");
 
                 environment.LastProcessed = DateTimeOffset.UtcNow;
                 await environmentRepository.AddOrUpdateAsync(environment).ConfigureAwait(false);
