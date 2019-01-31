@@ -43,6 +43,12 @@ namespace Microsoft.Partner.SmartOffice.Models
         public DateTimeOffset? LastProcessed { get; set; }
 
         /// <summary>
+        /// Gets or sets the date the customer's securescore was last processed.
+        /// </summary>
+        [JsonProperty("lastProcessedSecurity")]
+        public DateTimeOffset? LastProcessedSecurity { get; set; }
+
+        /// <summary>
         /// Gets or sets the exception that was encountered when processing the customer.
         /// </summary>
         [JsonProperty("processException")]

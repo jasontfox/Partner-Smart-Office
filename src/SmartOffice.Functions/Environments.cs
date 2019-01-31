@@ -54,7 +54,6 @@ namespace Microsoft.Partner.SmartOffice.Functions
                 SecretName = "{PartnerCenterEndpoint.ApplicationSecretId}",
                 ApplicationTenantId = "{PartnerCenterEndpoint.TenantId}",
                 Resource = "https://graph.windows.net")]IPartnerServiceClient partner,
-            [Queue(OperationConstants.SecurityQueueName, Connection = "StorageConnectionString")] ICollector<SecurityDetail> securityQueue,
             [Queue(OperationConstants.UtilizationQueueName, Connection = "StorageConnectionString")] ICollector<ProcessSubscriptionDetail> utilizationQueue,
             ILogger log)
         {
@@ -147,13 +146,6 @@ namespace Microsoft.Partner.SmartOffice.Functions
 
                 if (customerDetail.Customer.ProcessException == null)
                 {
-                    securityQueue.Add(new SecurityDetail
-                    {
-                        AppEndpoint = customerDetail.AppEndpoint,
-                        Customer = customerDetail.Customer,
-                        Period = period.ToString(CultureInfo.InvariantCulture)
-                    });
-
                     if (customerDetail.ProcessAzureUsage)
                     {
                         foreach (SubscriptionDetail subscription in subscriptions.Where(s => s.BillingType == BillingType.Usage))
@@ -205,6 +197,7 @@ namespace Microsoft.Partner.SmartOffice.Functions
                 ApplicationTenantId = "{PartnerCenterEndpoint.TenantId}",
                 Resource = "https://graph.windows.net")]IPartnerServiceClient client,
             [Queue(OperationConstants.CustomersQueueName, Connection = "StorageConnectionString")] ICollector<ProcessCustomerDetail> customerQueue,
+            [Queue(OperationConstants.SecurityQueueName, Connection = "StorageConnectionString")] ICollector<SecurityDetail> securityQueue,
             ILogger log)
         {
             List<AuditRecord> auditRecords;
@@ -251,7 +244,7 @@ namespace Microsoft.Partner.SmartOffice.Functions
                     }
 
                     //retrieve a list of customers for this environment
-                    var customerList = await customerRepository.GetAsync(c => c.EnvironmentId == environment.Id, null).ConfigureAwait(false);
+                    List<CustomerDetail> customerList = await customerRepository.GetAsync(c => c.EnvironmentId == environment.Id, null).ConfigureAwait(false);
                     log.LogInformation($"Retrieved {customerList.Count()} customers from the repository for the {environment.FriendlyName} Region");
 
                     //combine audit records and list of customers for the environment to obtain a differential list to process
@@ -270,7 +263,6 @@ namespace Microsoft.Partner.SmartOffice.Functions
 
                 log.LogInformation($"Adding {customers.Count()} customers to the queue for processing for the {environment.FriendlyName} Region");
 
-                int i = 0;
                 foreach (CustomerDetail customer in customers)
                 {
                     // Write the customer to the customers queue to start processing the customer.
@@ -281,10 +273,32 @@ namespace Microsoft.Partner.SmartOffice.Functions
                         PartnerCenterEndpoint = environment.PartnerCenterEndpoint,
                         ProcessAzureUsage = environment.ProcessAzureUsage
                     });
-                    i++;
                 }
 
-                log.LogInformation($"Added {i} customers to the queue...");
+                //add customers to the security queue to process securescore updates for all customers in the environment
+                List<CustomerDetail> updatedCustomers = await customerRepository.GetAsync(c => c.EnvironmentId == environment.Id, null).ConfigureAwait(false);
+
+                log.LogInformation($"Adding {updatedCustomers.Count()} customers to the queue for security processing for the {environment.FriendlyName} Region");
+                foreach (CustomerDetail customer in updatedCustomers)
+                {
+                    int period = (customer.LastProcessedSecurity == null) ? 30 : (DateTimeOffset.UtcNow - customer.LastProcessed).Value.Days;
+
+                    if (period < 1)
+                    {
+                        period = 1;
+                    }
+                    else if (period >= 30)
+                    {
+                        period = 30;
+                    }
+
+                    securityQueue.Add(new SecurityDetail
+                    {
+                        AppEndpoint = environment.AppEndpoint,
+                        Customer = customer,
+                        Period = period.ToString(CultureInfo.InvariantCulture)
+                    });
+                }
 
                 environment.LastProcessed = DateTimeOffset.UtcNow;
                 await environmentRepository.AddOrUpdateAsync(environment).ConfigureAwait(false);
@@ -314,6 +328,7 @@ namespace Microsoft.Partner.SmartOffice.Functions
             [DataRepository(
                 DataType = typeof(Alert))]DocumentRepository<Alert> securityAlertRepository,
             [DataRepository(DataType = typeof(SecureScore))]DocumentRepository<SecureScore> secureScoreRepository,
+            [DataRepository(DataType = typeof(CustomerDetail))]DocumentRepository<CustomerDetail> customerRepository,
             [SecureScore(
                 ApplicationId = "{AppEndpoint.ApplicationId}",
                 CustomerId = "{Customer.Id}",
@@ -350,6 +365,9 @@ namespace Microsoft.Partner.SmartOffice.Functions
                     alerts,
                     data.Customer.Id).ConfigureAwait(false);
             }
+
+            data.Customer.LastProcessedSecurity = DateTimeOffset.UtcNow;
+            await customerRepository.AddOrUpdateAsync(data.Customer).ConfigureAwait(false);
 
             log.LogInformation($"Successfully process data for {data.Customer.Id}");
         }
