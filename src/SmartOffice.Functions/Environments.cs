@@ -263,6 +263,9 @@ namespace Microsoft.Partner.SmartOffice.Functions
                 // Add, or update, each customer to the database.
                 await customerRepository.AddOrUpdateAsync(customers).ConfigureAwait(false);
 
+                log.LogInformation($"Adding {customers.Count()} customers to the queue for processing for the {environment.FriendlyName} Region");
+
+                int i = 0;
                 foreach (CustomerDetail customer in customers)
                 {
                     // Write the customer to the customers queue to start processing the customer.
@@ -273,7 +276,10 @@ namespace Microsoft.Partner.SmartOffice.Functions
                         PartnerCenterEndpoint = environment.PartnerCenterEndpoint,
                         ProcessAzureUsage = environment.ProcessAzureUsage
                     });
+                    i++;
                 }
+
+                log.LogTrace($"Added {i} customers to the queue...");
 
                 environment.LastProcessed = DateTimeOffset.UtcNow;
                 await environmentRepository.AddOrUpdateAsync(environment).ConfigureAwait(false);
