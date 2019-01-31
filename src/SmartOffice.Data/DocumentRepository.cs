@@ -317,13 +317,14 @@ namespace Microsoft.Partner.SmartOffice.Data
 
             try
             {
+                FeedOptions options = new FeedOptions();
+
+                if (!string.IsNullOrEmpty(partitionKey))
+                    options.PartitionKey = new PartitionKey(partitionKey);
 
                 query = Client.CreateDocumentQuery<TEntity>(
                     UriFactory.CreateDocumentCollectionUri(databaseId, collectionId),
-                    new FeedOptions
-                    {
-                        PartitionKey = new PartitionKey(partitionKey)
-                    })
+                    options)
                     .Where(predicate)
                     .AsDocumentQuery();
 
