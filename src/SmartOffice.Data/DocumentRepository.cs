@@ -273,14 +273,26 @@ namespace Microsoft.Partner.SmartOffice.Data
         public async Task<List<TEntity>> GetAsync()
         {
             FeedResponse<dynamic> response;
-            List<TEntity> results;
+            List<TEntity> results = new List<TEntity>();
 
             try
             {
-                response = await Client.ReadDocumentFeedAsync(
-                    UriFactory.CreateDocumentCollectionUri(databaseId, collectionId)).ConfigureAwait(false);
+                string continuation = string.Empty;
 
-                results = response.Select(d => (TEntity)d).ToList();
+                do
+                {
+                    response = await Client.ReadDocumentFeedAsync(
+                        UriFactory.CreateDocumentCollectionUri(databaseId, collectionId),
+                        new FeedOptions
+                        {
+                            MaxItemCount = 100,
+                            RequestContinuation = continuation
+                        }).ConfigureAwait(false);
+
+                    results.AddRange(response.Select(d => (TEntity)d).ToList());
+
+                    continuation = response.ResponseContinuation;
+                } while (!string.IsNullOrEmpty(continuation));
 
                 return results;
             }
