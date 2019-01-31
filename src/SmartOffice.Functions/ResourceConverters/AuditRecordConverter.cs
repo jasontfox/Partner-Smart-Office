@@ -55,7 +55,7 @@ namespace Microsoft.Partner.SmartOffice.Functions.ResourceConverters
             Customer resource;
             CustomerDetail control;
             IEnumerable<AuditRecord> filtered;
-            List<CustomerDetail> results;
+            List<CustomerDetail> results = new List<CustomerDetail>();
 
             try
             {
@@ -64,11 +64,11 @@ namespace Microsoft.Partner.SmartOffice.Functions.ResourceConverters
                     .Where(r => r.OperationStatus == OperationStatus.Succeeded && !string.IsNullOrEmpty(r.CustomerId))
                     .OrderBy(r => r.OperationDate);
 
-                results = new List<CustomerDetail>(details);
+                //customers = new List<CustomerDetail>(details);
 
                 foreach (AuditRecord record in filtered)
                 {
-                    control = results.SingleOrDefault(r => r.Id.Equals(record.CustomerId, StringComparison.InvariantCultureIgnoreCase));
+                    control = details.SingleOrDefault(r => r.Id.Equals(record.CustomerId, StringComparison.InvariantCultureIgnoreCase));
 
                     /*
                      * If the control variable is null and the operation type value is not equal 
@@ -96,6 +96,7 @@ namespace Microsoft.Partner.SmartOffice.Functions.ResourceConverters
                     else if (control != null)
                     {
                         control.RemovedFromPartnerCenter = false;
+                        results.Add(control);
                     }
                     else if (record.OperationType == OperationType.AddCustomer)
                     {
@@ -109,10 +110,12 @@ namespace Microsoft.Partner.SmartOffice.Functions.ResourceConverters
                     else if (record.OperationType == OperationType.RemovePartnerCustomerRelationship)
                     {
                         control.RemovedFromPartnerCenter = true;
+                        results.Add(control);
                     }
                     else if (record.OperationType == OperationType.UpdateCustomerBillingProfile)
                     {
                         control.BillingProfile = Convert<CustomerBillingProfile>(record);
+                        results.Add(control);
                     }
                 }
 

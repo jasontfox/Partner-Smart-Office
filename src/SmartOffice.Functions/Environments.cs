@@ -242,7 +242,7 @@ namespace Microsoft.Partner.SmartOffice.Functions
 
                     if (auditRecords.Count > 0)
                     {
-                        log.LogInformation($"Importing {auditRecords.Count} audit records available between now and the previous day.");
+                        log.LogInformation($"Importing {auditRecords.Count} audit records available between now and the previous day for the {environment.FriendlyName} Region.");
 
                         // Add, or update, each audit record to the database.
                         await auditRecordRepository.AddOrUpdateAsync(
@@ -250,17 +250,19 @@ namespace Microsoft.Partner.SmartOffice.Functions
                             environment.Id).ConfigureAwait(false);
                     }
 
-                    customers = await customerRepository.GetAsync().ConfigureAwait(false);
-                    log.LogInformation($"Retrieved {customers.Count()} customers from the repository");
+                    //retrieve a list of customers for this environment
+                    var customerList = await customerRepository.GetAsync(c => c.EnvironmentId == environment.Id, null).ConfigureAwait(false);
+                    log.LogInformation($"Retrieved {customerList.Count()} customers from the repository for the {environment.FriendlyName} Region");
 
+                    //combine audit records and list of customers for the environment to obtain a differential list to process
                     customers = await AuditRecordConverter.ConvertAsync(
                         client,
                         auditRecords,
-                        customers,
+                        customerList,
                         new Dictionary<string, string> { { "EnvironmentId", environment.Id } },
                         log).ConfigureAwait(false);
 
-                    log.LogInformation($"Audit record application resulted in {customers.Count()} customers in totoal.");
+                    log.LogInformation($"Audit record application resulted in {customers.Count()} customers to process for the {environment.FriendlyName} Region.");
                 }
 
                 // Add, or update, each customer to the database.
